@@ -1,0 +1,180 @@
+# Copyright (c) 2025, Bolton and contributors
+# For license information, please see license.txt
+
+"""
+Enrichment process methods for the Bolton Rule Engine
+"""
+
+import frappe
+from frappe import _
+
+
+def autocomplete_from_linked_doc(doc, context, source_link_field, field_mapping, **kwargs):
+	"""
+	Copy field values from a linked document
+	
+	Args:
+		doc: Document being processed
+		context: Execution context
+		source_link_field: Link field name (e.g., 'customer')
+		field_mapping: Dict mapping source fields to target fields
+			Example: {"customer_name": "party_name", "email_id": "contact_email"}
+		
+	Returns:
+		Dict: Mapping of fields that were updated
+	"""
+	source_doc_name = doc.get(source_link_field)
+	
+	if not source_doc_name:
+		return {}
+	
+	# Get linked document
+	meta = frappe.get_meta(doc.doctype)
+	source_doctype = meta.get_field(source_link_field).options
+	
+	try:
+		source_doc = frappe.get_doc(source_doctype, source_doc_name)
+	except frappe.DoesNotExistError:
+		frappe.logger().warning(f"Source document {source_doctype}/{source_doc_name} not found")
+		return {}
+	
+	# Copy fields
+	updated_fields = {}
+	for source_field, target_field in field_mapping.items():
+		value = source_doc.get(source_field)
+		if value and not doc.get(target_field):  # Only update if target is empty
+			doc.set(target_field, value)
+			updated_fields[target_field] = value
+	
+	return updated_fields
+
+
+def calculate_field_value(doc, context, target_field, formula, **kwargs):
+	"""
+	Calculate a field value using a formula
+	
+	Args:
+		doc: Document being processed
+		context: Execution context
+		target_field: Field to set calculated value
+		formula: Python expression for calculation (has access to 'doc' and 'frappe')
+		
+	Returns:
+		Calculated value
+	"""
+	# Prepare safe locals
+	safe_locals = {
+		'doc': doc,
+		'frappe': frappe
+	}
+	
+	try:
+		result = frappe.safe_eval(formula, None, safe_locals)
+		doc.set(target_field, result)
+		return result
+	except Exception as e:
+		frappe.throw(_("Formula calculation failed: {0}").format(str(e)))
+
+
+def set_default_value(doc, context, field, default_value, overwrite=False, **kwargs):
+	"""
+	Set a default value for a field if empty
+	
+	Args:
+		doc: Document being processed
+		context: Execution context
+		field: Field name
+		default_value: Value to set
+		overwrite: Whether to overwrite existing value
+		
+	Returns:
+		Value that was set
+	"""
+	current_value = doc.get(field)
+	
+	if overwrite or not current_value:
+		doc.set(field, default_value)
+		return default_value
+	
+	return current_value
+
+
+def copy_from_template(doc, context, template_doctype, template_name, field_list, **kwargs):
+	"""
+	Copy field values from a template document
+	
+	Args:
+		doc: Document being processed
+		context: Execution context
+		template_doctype: DocType of the template
+		template_name: Name of the template document
+		field_list: List of fields to copy
+		
+	Returns:
+		Dict of copied fields
+	"""
+	try:
+		template_doc = frappe.get_doc(template_doctype, template_name)
+	except frappe.DoesNotExistError:
+		frappe.throw(_("Template {0} not found").format(template_name))
+	
+	copied_fields = {}
+	for field in field_list:
+		value = template_doc.get(field)
+		if value:
+			doc.set(field, value)
+			copied_fields[field] = value
+	
+	return copied_fields
+
+
+def enrich_from_api(doc, context, api_endpoint, field_mapping, **kwargs):
+	"""
+	Fetch data from external API and populate fields
+	
+	Args:
+		doc: Document being processed
+		context: Execution context
+		api_endpoint: URL of API to call
+		field_mapping: Dict mapping API response keys to doc fields
+		
+	Returns:
+		Dict of enriched fields
+	"""
+	import requests
+	
+	try:
+		response = requests.get(api_endpoint, timeout=10)
+		response.raise_for_status()
+		data = response.json()
+	except Exception as e:
+		frappe.logger().error(f"API enrichment failed: {str(e)}")
+		return {}
+	
+	enriched_fields = {}
+	for api_key, doc_field in field_mapping.items():
+		value = data.get(api_key)
+		if value:
+			doc.set(doc_field, value)
+			enriched_fields[doc_field] = value
+	
+	return enriched_fields
+
+
+def apply_naming_series(doc, context, naming_series, **kwargs):
+	"""
+	Set naming series for the document
+	
+	Args:
+		doc: Document being processed
+		context: Execution context
+		naming_series: Naming series to apply
+		
+	Returns:
+		The naming series that was set
+	"""
+	if hasattr(doc, 'naming_series'):
+		doc.naming_series = naming_series
+		return naming_series
+	
+	return None

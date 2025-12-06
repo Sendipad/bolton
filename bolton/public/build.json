@@ -1,0 +1,8 @@
+{
+	"rule_builder.bundle.js": [
+		"public/js/rule_builder/rule_builder.js"
+	],
+	"js/rule_builder.bundle.js": [
+		"public/js/rule_builder/rule_builder.bundle.js"
+	]
+}

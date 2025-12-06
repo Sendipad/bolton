@@ -1,0 +1,172 @@
+import { defineStore } from "pinia";
+import { ref } from "vue";
+
+export const useStore = defineStore("rule-builder-store", () => {
+    let rule_name = ref(null);
+    let rule_doc = ref(null);
+    let graph = ref({ elements: [], selected: null });
+    let process_methods = ref([]);
+    let is_dirty = ref(false);
+
+    async function fetch() {
+        if (!rule_name.value) return;
+        
+        await frappe.model.with_doc("Rule", rule_name.value);
+        rule_doc.value = frappe.get_doc("Rule", rule_name.value);
+
+        // Load process methods
+        await fetch_process_methods();
+
+        // Load visual data
+        const visual_data = rule_doc.value.visual_data && typeof rule_doc.value.visual_data === "string" 
+            ? JSON.parse(rule_doc.value.visual_data) 
+            : null;
+            
+        if (visual_data && visual_data.length > 0) {
+            graph.value.elements = visual_data;
+        } else {
+            // Initialize with start node
+            graph.value.elements = [{
+                id: 'start',
+                type: 'start',
+                position: { x: 100, y: 100 },
+                label: 'Start',
+                data: {}
+            }];
+        }
+    }
+
+    async function fetch_process_methods() {
+        try {
+            const methods = await frappe.db.get_list('Process Method', {
+                fields: ['name', 'method_name', 'category', 'config_schema'],
+                filters: { is_enabled: 1 },
+                limit: 0
+            });
+            process_methods.value = methods || [];
+        } catch (e) {
+            console.error('Error loading process methods:', e);
+            process_methods.value = [];
+        }
+    }
+
+    async function get_process_method_schema(method_name) {
+        if (!method_name) return null;
+        const method = process_methods.value.find(m => m.name === method_name);
+        if (method && method.config_schema) {
+            try {
+                return JSON.parse(method.config_schema);
+            } catch (e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    function mark_dirty() {
+        is_dirty.value = true;
+    }
+
+    function clear_dirty() {
+        is_dirty.value = false;
+    }
+
+    async function save_changes() {
+        frappe.dom.freeze(__("Saving..."));
+        try {
+            let doc = rule_doc.value;
+            
+            // Save visual data
+            doc.visual_data = JSON.stringify(clean_graph_data());
+            
+            // Sync graph to actions table
+            const nodes = graph.value.elements.filter(el => el.position && el.id !== 'start');
+            const edges = graph.value.elements.filter(el => el.source);
+            
+            doc.actions = nodes.map((node, idx) => {
+                const outgoing = edges.filter(e => e.source === node.id);
+                const true_edge = outgoing.find(e => e.sourceHandle === 'true' || !e.sourceHandle);
+                const false_edge = outgoing.find(e => e.sourceHandle === 'false');
+                
+                return {
+                    idx: idx,
+                    action_id: node.data?.action_id || node.id,
+                    action_label: node.label,
+                    action_type: node.data?.action_type,
+                    is_enabled: node.data?.is_enabled !== undefined ? node.data.is_enabled : 1,
+                    process_method: node.data?.process_method || null,
+                    configuration: node.data?.configuration || null,
+                    condition_expression: node.data?.condition_expression || null,
+                    on_error: node.data?.on_error || 'Stop',
+                    retry_count: node.data?.retry_count || 0,
+                    timeout: node.data?.timeout || 30,
+                    next_step_if_true: true_edge?.target || null,
+                    next_step_if_false: false_edge?.target || null,
+                    return_variable: node.data?.return_variable || null,
+                    position_x: Math.round(node.position.x),
+                    position_y: Math.round(node.position.y),
+                    description: node.data?.description || null
+                };
+            });
+            
+            await frappe.call("frappe.client.save", { doc });
+            frappe.show_alert({ message: __("Rule saved"), indicator: "green" });
+            clear_dirty();
+            await fetch();
+        } catch (e) {
+            console.error(e);
+            frappe.msgprint(__("Error saving: " + (e.message || e)));
+        } finally {
+            frappe.dom.unfreeze();
+        }
+    }
+
+    function clean_graph_data() {
+        return graph.value.elements.map((el) => {
+            const { selected, dragging, resizing, sourceNode, targetNode, ...obj } = el;
+            return obj;
+        });
+    }
+
+    return {
+        rule_name,
+        rule_doc,
+        graph,
+        process_methods,
+        is_dirty,
+        fetch,
+        get_process_method_schema,
+        save_changes,
+        mark_dirty,
+        clear_dirty
+    };
+});
+
+// Enhanced store additions (append to existing store.js)
+
+async function load_document_meta() {
+    if (!rule_doc.value?.document_type) return;
+    
+    try {
+        await frappe.model.with_doctype(rule_doc.value.document_type);
+    } catch (e) {
+        console.error('Error loading document meta:', e);
+    }
+}
+
+// Update fetch to load meta and create dynamic start node
+async function fetch_enhanced() {
+    await fetch(); // Call original fetch
+    await load_document_meta();
+    
+    // Update start node with dynamic data
+    const startNode = graph.value.elements.find(el => el.id === 'start');
+    if (startNode && rule_doc.value) {
+        startNode.data.document_type = rule_doc.value.document_type;
+        startNode.data.trigger_event = rule_doc.value.trigger_event;
+        startNode.label = `${rule_doc.value.document_type}\n${rule_doc.value.trigger_event}`;
+    }
+}
+
+// Export enhanced fetch
+export { fetch_enhanced, load_document_meta };
