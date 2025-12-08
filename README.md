@@ -1,181 +1,114 @@
 # Bolton Rule Engine
 
-A clean, modern, enterprise-grade Rule Engine and Data Quality Framework for Frappe/ERPNext.
+**Enterprise-Grade Rule Engine & Data Quality Framework for Frappe/ERPNext**
 
-## Features
+Bolton transforms how you manage business logic in ERPNext. Instead of hardcoding logic in Python hooks, define flexible **Rules** that run validations, deduplication, and data enrichment dynamically.
 
-✅ **JSON-Based Rules** - No complex child tables, just clean JSON configurations
-✅ **4 Rule Types** - Validation, Deduplication, Transformation, Enrichment
-✅ **Flexible Conditions** - Nested AND/OR logic, multiple operators
-✅ **Powerful Actions** - Set fields, raise errors/warnings, log issues, call methods
-✅ **High Performance** - Built-in caching for rule lookups
-✅ **Clean Architecture** - ~500 lines of core code (vs 1500+ in typical implementations)
+## 🚀 Key Features
 
-## Architecture
+*   **Graph-Based Execution**: Compose complex logic flows using a visual graph of actions.
+*   **Process Methods**: Extensible units of logic (Python functions) that plug into any rule.
+*   **No-Code Configuration**: Configure logic using JSON schemas - the UI automatically adapts to the method's requirements.
+*   **Data Quality**: built-in deduplication (fuzzy matching, child table checks) and normalization.
+*   **Safe Execution**: Sandboxed environment with timeouts and error handling.
 
+## 🏗️ Architecture
+
+The system is built on three core pillars:
+
+1.  **Rule (`Rule`)**: The trigger configuration (Link to DocType, Event, Filters).
+2.  **Rule Action (`Rule Action`)**: A step in the rule's execution graph. Links to a *Process Method*.
+3.  **Process Method (`Process Method`)**: The actual code definition (e.g., `validate_email`, `find_duplicates`).
+
+```mermaid
+graph LR
+    Trigger[Rule Trigger] --> Action1[Action: Validate]
+    Action1 -->|Success| Action2[Action: Check Duplicates]
+    Action1 -->|Fail| Stop[Stop Execution]
+    Action2 -->|Found| Action3[Action: Block Save]
+    Action2 -->|None| Action4[Action: Enrich Data]
 ```
-Bolton Rule Engine
-├── DocTypes (3 total)
-│   ├── Rule (master)
-│   ├── Normalization Profile 
-│   └── Data Quality Issue (logs)
-│
-├── Core Services
-│   ├── RuleCoordinator - Rule loading & dispatch
-│   ├── ConditionEvaluator - JSON condition evaluation
-│   ├── ActionExecutor - Action execution
-│   └── ScoringEngine - Deduplication/matching
-│
-└── Hooks
-    └── doc_events - Automatic rule execution
-```
 
-## Quick Start
+## 🛠️ Usage
 
-### 1. Create a Simple Validation Rule
+### 1. Creating a Process Method (Developer)
 
+Define a Python function and register it as a `Process Method` DocType.
+
+**Code:**
 ```python
-rule = frappe.get_doc({
-    "doctype": "Rule",
-    "rule_name": "Email Required for Companies",
-    "rule_type": "Validation",
-    "document_type": "Customer",
-    "trigger_event": "validate",
-    "is_active": 1,
-    "conditions_json": '[{"left": {"type": "field", "value": "customer_type"}, "operator": "==", "right": {"type": "literal", "value": "Company"}}]',
-    "actions_json": '[{"type": "raise_error", "message": "Email is required for company customers"}]'
-})
-rule.insert()
+# bolton/ruleflow/methods/custom.py
+def check_credit_limit(context, limit=0, **kwargs):
+    doc = context.get('doc')
+    if doc.grand_total > limit:
+         return False
+    return True
 ```
 
-### 2. Create a Transformation Rule
-
-```python
-rule = frappe.get_doc({
-    "doctype": "Rule",
-    "rule_name": "Auto-set Priority",
-    "rule_type": "Transformation",
-    "document_type": "Sales Order",
-    "trigger_event": "before_save",
-    "conditions_json": '[{"left": {"type": "field", "value": "grand_total"}, "operator": ">", "right": {"type": "literal", "value": 100000}}]',
-    "actions_json": '[{"type": "set_field", "field": "priority", "value": {"type": "literal", "value": "High"}}]'
-})
-rule.insert()
-```
-
-### 3. Create a Deduplication Rule
-
-```python
-rule = frappe.get_doc({
-    "doctype": "Rule",
-    "rule_name": "Detect Duplicate Customers",
-    "rule_type": "Deduplication",
-    "document_type": "Customer",
-    "trigger_event": "before_insert",
-    "options_json": '{"match_threshold": 85, "blocking_fields": ["country"], "scoring_fields": [{"field": "customer_name", "weight": 0.7}, {"field": "email_id", "weight": 0.3}]}'
-})
-rule.insert()
-```
-
-## Rule Structure
-
-### Conditions JSON Format
-
+**Fixture (process_method.json):**
 ```json
-[
-  {
-    "left": {"type": "field", "value": "fieldname"},
-    "operator": "==",
-    "right": {"type": "literal", "value": "some value"},
-    "logical_operator": "AND"
-  }
-]
+{
+    "method_path": "bolton.ruleflow.methods.custom.check_credit_limit",
+    "config_schema": "{\"fields\": [{\"fieldname\": \"limit\", \"fieldtype\": \"Currency\", \"label\": \"Max Amount\"}]}",
+    "return_type": "Boolean"
+}
 ```
 
-**Supported Operators:**
-- `==`, `!=`, `>`, `<`, `>=`, `<=`
-- `in`, `not_in`
-- `contains`, `not_contains`
-- `is_set`, `is_not_set`
-- `regex`
+### 2. Configuring a Rule (User)
 
-**Value Types:**
-- `field` - Document field value
-- `literal` - Hard-coded value
-- `method` - Call a method and use return value
+Create a **Rule** document:
+*   **DocType**: `Sales Order`
+*   **Event**: `Before Save`
+*   **Actions**:
+    *   **Label**: Check Credit
+    *   **Method**: `Check Credit Limit`
+    *   **Configuration**: `{ "limit": 5000 }` (UI generated from schema)
+    *   **Action ID**: `CREDIT_CHECK`
 
-### Actions JSON Format
+### 3. Data Mapping (Inputs/Outputs)
 
-```json
-[
-  {
-    "type": "set_field",
-    "field": "status",
-    "value": {"type": "literal", "value": "Approved"}
-  },
-  {
-    "type": "raise_error",
-    "message": "Validation failed"
-  },
-  {
-    "type": "log_issue",
-    "severity": "High",
-    "message": "Data quality issue detected"
-  }
-]
-```
+Pass data between the Rule Context and Process Methods dynamically.
 
-**Supported Actions:**
-- `set_field` - Set a field value
-- `raise_error` - Block save with error
-- `raise_warning` - Show warning (doesn't block)
-- `log_issue` - Create Data Quality Issue record
-- `call_method` - Execute custom Python method
+*   **Input Mapping**: map context variables to function arguments.
+    *   `{"customer_grade": "grade"}` -> Passes `context['customer_grade']` as `grade` argument.
+*   **Output Mapping**: Store function results back into context.
+    *   `{"is_valid": "check_passed"}` -> Stores result in `context['check_passed']`.
 
-## Installation
+## 📦 Contact Deduplication
+
+Bolton includes powerful deduplication out-of-the-box.
+
+**Scenario**: Prevent saving a Contact if their phone number exists on *any* other contact.
+
+1.  Create Rule for **Contact** on **Before Save**.
+2.  Add Action: **Find Duplicates in Child Table**.
+3.  Configuration:
+    *   **Child Table**: `phone_nos`
+    *   **Child Field**: `phone`
+4.  Add Action: **Prevent Duplicate Save** (if previous step returns list).
+
+## 📥 Installation
 
 ```bash
-# Get the app
-cd frappe-bench
+# 1. Get the App
 bench get-app bolton [git-url]
 
-# Install to site
+# 2. Install Dependencies
+./env/bin/pip install jsonschema rapidfuzz
+
+# 3. Install to Site
 bench --site [sitename] install-app bolton
 
-# Migrate
+# 4. Migrate (loads fixtures)
 bench --site [sitename] migrate
 ```
 
-## Development
+## 🧪 Running Tests
 
 ```bash
-# Run tests
 bench --site [sitename] run-tests --app bolton
-
-# Clear cache after rule changes
-bench --site [sitename] clear-cache
 ```
-
-## Documentation
-
-- [Example Rules](./EXAMPLES.md) - Complete examples for all rule types
-- [API Documentation](./API.md) - Developer API reference
-
-## Comparison vs Traditional Approach
-
-| Feature | Bolton | Traditional |
-|---------|--------|-------------|
-| DocTypes | 3 | 15-20 |
-| Fields | ~35 total | 200+ |
-| Core Code | ~500 lines | 1500+ lines |
-| Condition Model | JSON arrays | Child tables (47 fields!) |
-| Performance | Cached | Slower |
-| Maintainability | High | Low |
 
 ## License
 
 MIT
-
-## Credits
-
-Built with ❤️ for the Frappe/ERPNext community
