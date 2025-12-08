@@ -29,12 +29,12 @@ def export_rule(rule_name):
             "rule_name": rule.rule_name,
             "document_type": rule.document_type,
             "trigger_event": rule.trigger_event,
-            "rule_type": rule.rule_type,
+            "rule_type": getattr(rule, 'rule_type', None),
             "priority": rule.priority,
             "is_active": rule.is_active,
-            "conditions_json": rule.conditions_json,
-            "options_json": rule.options_json,
-            "visual_data": rule.visual_data,
+            "conditions_json": getattr(rule, 'conditions_json', None),
+            "options_json": getattr(rule, 'options_json', None),
+            "visual_data": getattr(rule, 'visual_data', None),
             "actions": []
         }
     }

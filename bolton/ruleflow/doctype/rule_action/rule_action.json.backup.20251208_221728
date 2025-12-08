@@ -9,8 +9,6 @@
         "action_type",
         "action_label",
         "is_enabled",
-        "priority",
-        "is_async",
         "column_break_1",
         "condition_expression",
         "condition_json",
@@ -21,10 +19,6 @@
         "on_error",
         "retry_count",
         "timeout",
-        "output_mapping",
-        "column_break_mapping",
-        "input_mapping",
-        "section_break_mapping",
         "section_break_flow",
         "next_step_if_true",
         "next_step_if_false",
@@ -186,44 +180,6 @@
             "fieldtype": "Text",
             "label": "Description",
             "description": "Optional documentation for this action"
-        },
-        {
-            "fieldname": "priority",
-            "fieldtype": "Int",
-            "label": "Priority",
-            "default": "0",
-            "description": "Execution order for parallel actions (higher = first)"
-        },
-        {
-            "fieldname": "is_async",
-            "fieldtype": "Check",
-            "label": "Async",
-            "default": "0",
-            "description": "Execute in background queue"
-        },
-        {
-            "fieldname": "section_break_mapping",
-            "fieldtype": "Section Break",
-            "label": "Variable Mapping",
-            "collapsible": 1
-        },
-        {
-            "fieldname": "input_mapping",
-            "fieldtype": "Code",
-            "label": "Input Mapping",
-            "options": "JSON",
-            "description": "Map context variables to method params: {\"context_var\": \"param_name\"}"
-        },
-        {
-            "fieldname": "column_break_mapping",
-            "fieldtype": "Column Break"
-        },
-        {
-            "fieldname": "output_mapping",
-            "fieldtype": "Code",
-            "label": "Output Mapping",
-            "options": "JSON",
-            "description": "Map result keys to context: {\"result_key\": \"context_var\"}"
         }
     ],
     "istable": 1,

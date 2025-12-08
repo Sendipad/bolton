@@ -6,90 +6,151 @@
         </div>
         
         <div class="config-body">
-            <div v-for="field in fields" :key="field.fieldname" class="form-group">
-                <label>
-                    {{ __(field.label) }}
-                    <span v-if="field.reqd" class="text-danger">*</span>
-                </label>
+            <template v-for="(field, idx) in visibleFields" :key="field.fieldname">
+                <!-- Section Break -->
+                <div v-if="field.fieldtype === 'Section Break'" class="section-break">
+                    <h6 v-if="field.label">{{ __(field.label) }}</h6>
+                    <hr v-else />
+                </div>
                 
-                <!-- Autocomplete for DocType fields -->
-                <div v-if="field.fieldtype === 'Autocomplete'" class="autocomplete-wrapper">
+                <!-- Column Break -->
+                <div v-else-if="field.fieldtype === 'Column Break'" class="column-break"></div>
+                
+                <!-- Regular fields -->
+                <div v-else class="form-group">
+                    <label v-if="field.label">
+                        {{ __(field.label) }}
+                        <span v-if="field.reqd" class="text-danger">*</span>
+                    </label>
+                    
+                    <!-- DocField / FieldPicker -->
+                    <FieldPickerControl
+                        v-if="field.fieldtype === 'DocField'"
+                        :df="field"
+                        :documentType="documentType"
+                        :modelValue="values[field.fieldname]"
+                        @update:modelValue="updateValue(field.fieldname, $event)"
+                    />
+                    
+                    <!-- MultiDocField / MultiFieldPicker -->
+                    <MultiFieldPickerControl
+                        v-else-if="field.fieldtype === 'MultiDocField'"
+                        :df="field"
+                        :documentType="documentType"
+                        :modelValue="values[field.fieldname]"
+                        @update:modelValue="updateValue(field.fieldname, $event)"
+                    />
+                    
+                    <!-- MultiSelect -->
+                    <MultiSelectControl
+                        v-else-if="field.fieldtype === 'MultiSelect'"
+                        :df="field"
+                        :modelValue="values[field.fieldname]"
+                        @update:modelValue="updateValue(field.fieldname, $event)"
+                    />
+                    
+                    <!-- Table -->
+                    <InlineTableControl
+                        v-else-if="field.fieldtype === 'Table'"
+                        :df="field"
+                        :documentType="documentType"
+                        :modelValue="values[field.fieldname]"
+                        @update:modelValue="updateValue(field.fieldname, $event)"
+                    />
+                    
+                    <!-- Percent Slider -->
+                    <PercentSliderControl
+                        v-else-if="field.fieldtype === 'Percent'"
+                        :df="field"
+                        :modelValue="values[field.fieldname]"
+                        @update:modelValue="updateValue(field.fieldname, $event)"
+                    />
+                    
+                    <!-- Select dropdown -->
+                    <select 
+                        v-else-if="field.fieldtype === 'Select'"
+                        class="form-control form-control-sm"
+                        :value="values[field.fieldname]"
+                        @change="updateValue(field.fieldname, $event.target.value)"
+                    >
+                        <option value="">{{ __("Select...") }}</option>
+                        <option v-for="opt in getSelectOptions(field)" :key="opt" :value="opt">
+                            {{ __(opt) }}
+                        </option>
+                    </select>
+                    
+                    <!-- Checkbox -->
+                    <div v-else-if="field.fieldtype === 'Check'" class="form-check">
+                        <input 
+                            type="checkbox"
+                            class="form-check-input"
+                            :id="'check-' + field.fieldname"
+                            :checked="values[field.fieldname]"
+                            @change="updateValue(field.fieldname, $event.target.checked ? 1 : 0)"
+                        />
+                    </div>
+                    
+                    <!-- Link -->
+                    <LinkControl
+                        v-else-if="field.fieldtype === 'Link'"
+                        :df="field"
+                        :modelValue="values[field.fieldname]"
+                        @update:modelValue="updateValue(field.fieldname, $event)"
+                    />
+                    
+                    <!-- Dynamic Link -->
+                    <LinkControl
+                        v-else-if="field.fieldtype === 'Dynamic Link'"
+                        :df="{...field, options: values[field.options] || ''}"
+                        :modelValue="values[field.fieldname]"
+                        @update:modelValue="updateValue(field.fieldname, $event)"
+                    />
+                    
+                    <!-- Code / Small Text -->
+                    <textarea 
+                        v-else-if="field.fieldtype === 'Code' || field.fieldtype === 'Small Text'"
+                        class="form-control form-control-sm"
+                        :value="values[field.fieldname]"
+                        @input="updateValue(field.fieldname, $event.target.value)"
+                        :placeholder="field.description"
+                        rows="3"
+                    ></textarea>
+                    
+                    <!-- Text Editor -->
+                    <textarea 
+                        v-else-if="field.fieldtype === 'Text Editor'"
+                        class="form-control form-control-sm"
+                        :value="values[field.fieldname]"
+                        @input="updateValue(field.fieldname, $event.target.value)"
+                        rows="5"
+                    ></textarea>
+                    
+                    <!-- Number inputs -->
                     <input 
+                        v-else-if="field.fieldtype === 'Int' || field.fieldtype === 'Float'"
+                        type="number"
+                        class="form-control form-control-sm"
+                        :value="values[field.fieldname]"
+                        @input="updateValue(field.fieldname, parseFloat($event.target.value))"
+                        :step="field.fieldtype === 'Float' ? '0.01' : '1'"
+                    />
+                    
+                    <!-- Default text input -->
+                    <input 
+                        v-else
                         type="text"
                         class="form-control form-control-sm"
                         :value="values[field.fieldname]"
                         @input="updateValue(field.fieldname, $event.target.value)"
                         :placeholder="field.description"
-                        @focus="showAutocomplete(field)"
                     />
-                    <div v-if="autocompleteField === field.fieldname && fieldOptions.length" class="autocomplete-results">
-                        <div 
-                            v-for="opt in fieldOptions" 
-                            :key="opt.value"
-                            class="autocomplete-item"
-                            @click="selectAutocomplete(field.fieldname, opt.value)"
-                        >
-                            <strong>{{ opt.value }}</strong>
-                            <small class="text-muted">{{ opt.description }}</small>
-                        </div>
-                    </div>
+                    
+                    <small v-if="field.description && !['DocField', 'MultiDocField', 'MultiSelect'].includes(field.fieldtype)" 
+                           class="form-text text-muted">
+                        {{ field.description }}
+                    </small>
                 </div>
-                
-                <!-- Select dropdown -->
-                <select 
-                    v-else-if="field.fieldtype === 'Select'"
-                    class="form-control form-control-sm"
-                    :value="values[field.fieldname]"
-                    @change="updateValue(field.fieldname, $event.target.value)"
-                >
-                    <option value="">{{ __("Select...") }}</option>
-                    <option v-for="opt in field.options.split('\n')" :key="opt" :value="opt">
-                        {{ __(opt) }}
-                    </option>
-                </select>
-                
-                <!-- Checkbox -->
-                <input 
-                    v-else-if="field.fieldtype === 'Check'"
-                    type="checkbox"
-                    :checked="values[field.fieldname]"
-                    @change="updateValue(field.fieldname, $event.target.checked)"
-                />
-                
-                <!-- Code editor -->
-                <textarea 
-                    v-else-if="field.fieldtype === 'Code' || field.fieldtype === 'Small Text'"
-                    class="form-control form-control-sm"
-                    :value="values[field.fieldname]"
-                    @input="updateValue(field.fieldname, $event.target.value)"
-                    :placeholder="field.description"
-                    rows="3"
-                ></textarea>
-                
-                <!-- Number input -->
-                <input 
-                    v-else-if="field.fieldtype === 'Int' || field.fieldtype === 'Float'"
-                    type="number"
-                    class="form-control form-control-sm"
-                    :value="values[field.fieldname]"
-                    @input="updateValue(field.fieldname, $event.target.value)"
-                    :step="field.fieldtype === 'Float' ? '0.01' : '1'"
-                />
-                
-                <!-- Default text input -->
-                <input 
-                    v-else
-                    type="text"
-                    class="form-control form-control-sm"
-                    :value="values[field.fieldname]"
-                    @input="updateValue(field.fieldname, $event.target.value)"
-                    :placeholder="field.description"
-                />
-                
-                <small v-if="field.description" class="form-text text-muted">
-                    {{ field.description }}
-                </small>
-            </div>
+            </template>
         </div>
         
         <div v-if="validationErrors.length" class="alert alert-danger">
@@ -104,6 +165,14 @@
 import { ref, watch, computed } from 'vue';
 import { parseSchemaToFields, validateConfigAgainstSchema } from '../utils/schemaParser.js';
 
+// Import new controls
+import MultiSelectControl from '../controls/MultiSelectControl.vue';
+import FieldPickerControl from '../controls/FieldPickerControl.vue';
+import MultiFieldPickerControl from '../controls/MultiFieldPickerControl.vue';
+import InlineTableControl from '../controls/InlineTableControl.vue';
+import PercentSliderControl from '../controls/PercentSliderControl.vue';
+import LinkControl from '../controls/LinkControl.vue';
+
 const props = defineProps({
     schema: Object,
     modelValue: [String, Object],
@@ -114,10 +183,9 @@ const emit = defineEmits(['update:modelValue', 'validation-change']);
 
 const fields = ref([]);
 const values = ref({});
-const autocompleteField = ref(null);
-const fieldOptions = ref([]);
 const validationErrors = ref([]);
 
+// Parse schema to fields
 watch(() => props.schema, (schema) => {
     if (!schema) {
         fields.value = [];
@@ -126,6 +194,7 @@ watch(() => props.schema, (schema) => {
     fields.value = parseSchemaToFields(schema, props.documentType);
 }, { immediate: true });
 
+// Parse model value
 watch(() => props.modelValue, (val) => {
     try {
         values.value = typeof val === 'string' ? JSON.parse(val) : (val || {});
@@ -135,8 +204,50 @@ watch(() => props.modelValue, (val) => {
     validate();
 }, { immediate: true });
 
+// Filter visible fields based on depends_on
+const visibleFields = computed(() => {
+    return fields.value.filter(field => {
+        if (!field.depends_on) return true;
+        return evaluateDependsOn(field.depends_on, values.value);
+    });
+});
+
+// Evaluate depends_on expression
+function evaluateDependsOn(expression, formData) {
+    if (!expression) return true;
+    
+    // Parse "eval:doc.field=='value'" format
+    const match = expression.match(/^eval:(.+)$/);
+    if (!match) return true;
+    
+    let condition = match[1];
+    
+    // Replace doc.X with actual values
+    condition = condition.replace(/doc\.(\w+)/g, (_, fieldname) => {
+        const val = formData[fieldname];
+        if (val === undefined || val === null) return "''";
+        if (typeof val === 'string') return `'${val}'`;
+        return String(val);
+    });
+    
+    try {
+        return new Function(`return ${condition}`)();
+    } catch (e) {
+        console.warn('depends_on evaluation failed:', expression, e);
+        return true;
+    }
+}
+
+function getSelectOptions(field) {
+    const opts = field.options || '';
+    if (typeof opts === 'string') {
+        return opts.split('\n').filter(Boolean);
+    }
+    return opts;
+}
+
 function updateValue(fieldname, value) {
-    values.value[fieldname] = value;
+    values.value = { ...values.value, [fieldname]: value };
     emit('update:modelValue', JSON.stringify(values.value));
     validate();
 }
@@ -145,19 +256,6 @@ function validate() {
     const result = validateConfigAgainstSchema(values.value, props.schema);
     validationErrors.value = result.errors || [];
     emit('validation-change', result.valid);
-}
-
-function showAutocomplete(field) {
-    if (field.options && typeof field.options === 'function') {
-        fieldOptions.value = field.options();
-        autocompleteField.value = field.fieldname;
-    }
-}
-
-function selectAutocomplete(fieldname, value) {
-    updateValue(fieldname, value);
-    autocompleteField.value = null;
-    fieldOptions.value = [];
 }
 
 function clearAll() {
@@ -175,12 +273,17 @@ function clearAll() {
 .config-header {
     display: flex;
     justify-content: space-between;
-    padding: 10px;
+    align-items: center;
+    padding: 10px 15px;
     border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
     background: white;
     z-index: 1;
+}
+.config-header h6 {
+    margin: 0;
+    font-size: 13px;
 }
 .config-body {
     padding: 15px;
@@ -188,42 +291,29 @@ function clearAll() {
 .form-group {
     margin-bottom: 15px;
 }
-.form-group label {
-    font-size: 13px;
+.form-group > label {
+    font-size: 12px;
     font-weight: 500;
     margin-bottom: 5px;
     display: block;
 }
-.autocomplete-wrapper {
-    position: relative;
+.section-break {
+    margin: 20px 0 15px;
 }
-.autocomplete-results {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: white;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    max-height: 200px;
-    overflow-y: auto;
-    z-index: 10;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+.section-break h6 {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 0 0 10px;
 }
-.autocomplete-item {
-    padding: 8px 12px;
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
+.section-break hr {
+    margin: 0;
 }
-.autocomplete-item:hover {
-    background: var(--bg-light-gray);
+.column-break {
+    height: 10px;
 }
-.autocomplete-item strong {
-    font-size: 13px;
-}
-.autocomplete-item small {
-    font-size: 11px;
+.form-check {
+    padding-left: 0;
 }
 .alert {
     margin: 10px;

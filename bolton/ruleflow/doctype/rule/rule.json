@@ -176,5 +176,15 @@
     "sort_field": "priority",
     "sort_order": "DESC",
     "states": [],
-    "track_changes": 1
+    "search_fields": "rule_name, document_type",
+    "track_changes": 1,
+    "indexes": [
+        {
+            "fields": [
+                "document_type",
+                "trigger_event",
+                "is_active"
+            ]
+        }
+    ]
 }

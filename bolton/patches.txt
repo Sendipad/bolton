@@ -5,3 +5,4 @@
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
 bolton.patches.v1_0.migrate_to_process_method_architecture  #2025-12-02
+bolton.patches.rename_process_methods  #2025-12-07bolton.patches.v1_0.rename_process_methods_to_method_path

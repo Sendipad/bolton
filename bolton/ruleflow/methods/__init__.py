@@ -9,5 +9,6 @@ from . import validation
 from . import enrichment
 from . import notifications
 from . import deduplication
+from . import normalization
 
-__all__ = ['validation', 'enrichment', 'notifications', 'deduplication']
+__all__ = ['validation', 'enrichment', 'notifications', 'deduplication', 'normalization']

@@ -23,7 +23,6 @@ from bolton.ruleflow.core.exceptions import (
 	TimeoutError as BoltonTimeoutError,
 	CycleDetectedError
 )
-from bolton.ruleflow.utils.mapping import apply_input_mapping, apply_output_mapping
 
 
 class TimeoutException(Exception):
@@ -224,7 +223,6 @@ class RuleEngine:
 	def _initialize_context(self, doc, **kwargs):
 		"""Setup execution context with safety checks"""
 		return {
-			**self.context,
 			'doc': doc,
 			'frappe': self._get_safe_frappe_api(),
 			'vars': {},
@@ -420,24 +418,14 @@ class RuleEngine:
 			except json.JSONDecodeError as e:
 				raise MethodExecutionError(f"Invalid configuration JSON: {str(e)}")
 		
-		# Apply Input Mapping (Context -> Config)
-		if action.input_mapping:
-			config = apply_input_mapping(context, action.input_mapping, config)
-		
 		# Execute with retry logic
-		result = self._call_method_with_retry(
+		return self._call_method_with_retry(
 			process_method=process_method,
 			config=config,
 			context=context,
 			retry_count=action.retry_count or 0,
 			timeout=action.timeout or 30
 		)
-		
-		# Apply Output Mapping (Result -> Context)
-		if action.output_mapping:
-			apply_output_mapping(result, action.output_mapping, context)
-			
-		return result
 	
 	def _call_method_with_retry(self, process_method, config, context, retry_count, timeout):
 		"""Execute method with retry logic"""

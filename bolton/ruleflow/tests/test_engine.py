@@ -1,6 +1,14 @@
 # Copyright (c) 2025, Bolton and contributors
 # For license information, please see license.txt
 
+"""
+Tests for Bolton Rule Engine
+
+All process methods use the context-first pattern:
+    result = method_name(context, **config)
+    where context contains 'doc' and 'vars'
+"""
+
 import frappe
 import unittest
 from frappe.tests.utils import FrappeTestCase
@@ -53,7 +61,8 @@ class TestValidationMethods(FrappeTestCase):
         from bolton.ruleflow.methods.validation import validate_required_fields
         
         doc = frappe.get_doc({"doctype": "ToDo", "description": "Test"})
-        result = validate_required_fields(doc, {}, fields=["description"])
+        context = {"doc": doc, "vars": {}}
+        result = validate_required_fields(context, fields=["description"])
         self.assertTrue(result)
     
     def test_validate_required_fields_fail(self):
@@ -61,16 +70,18 @@ class TestValidationMethods(FrappeTestCase):
         from bolton.ruleflow.methods.validation import validate_required_fields
         
         doc = frappe.get_doc({"doctype": "ToDo", "description": ""})
+        context = {"doc": doc, "vars": {}}
         
         with self.assertRaises(frappe.ValidationError):
-            validate_required_fields(doc, {}, fields=["description"])
+            validate_required_fields(context, fields=["description"])
     
     def test_validate_field_pattern(self):
         """Test regex pattern validation"""
         from bolton.ruleflow.methods.validation import validate_field_pattern
         
         doc = frappe._dict({"email": "test@example.com"})
-        result = validate_field_pattern(doc, {}, field="email", pattern=r".*@.*\..*")
+        context = {"doc": doc, "vars": {}}
+        result = validate_field_pattern(context, field="email", pattern=r".*@.*\..*")
         self.assertTrue(result)
 
 
@@ -83,7 +94,8 @@ class TestEnrichmentMethods(FrappeTestCase):
         
         # Use actual document, not _dict
         doc = frappe.get_doc({"doctype": "ToDo", "description": "Test"})
-        result = set_default_value(doc, {}, field="priority", default_value="Medium")
+        context = {"doc": doc, "vars": {}}
+        result = set_default_value(context, field="priority", default_value="Medium")
         
         self.assertEqual(doc.priority, "Medium")
         self.assertEqual(result, "Medium")
@@ -93,7 +105,8 @@ class TestEnrichmentMethods(FrappeTestCase):
         from bolton.ruleflow.methods.enrichment import set_default_value
         
         doc = frappe.get_doc({"doctype": "ToDo", "description": "Test", "priority": "High"})
-        result = set_default_value(doc, {}, field="priority", default_value="Low", overwrite=False)
+        context = {"doc": doc, "vars": {}}
+        result = set_default_value(context, field="priority", default_value="Low", overwrite=False)
         
         self.assertEqual(doc.priority, "High")
     
@@ -103,6 +116,8 @@ class TestEnrichmentMethods(FrappeTestCase):
         
         # Use actual document with set() method
         doc = frappe.get_doc({"doctype": "ToDo", "description": "Test"})
-        result = calculate_field_value(doc, {}, target_field="priority", formula='"High"')
+        context = {"doc": doc, "vars": {}}
+        result = calculate_field_value(context, target_field="priority", formula='"High"')
         
         self.assertEqual(doc.priority, "High")
+

@@ -262,17 +262,5 @@
     "is_enabled": 1,
     "module": "Ruleflow",
     "config_schema": "{\"fields\":[{\"fieldname\":\"source_field\",\"fieldtype\":\"DocField\",\"label\":\"Source Field\",\"reqd\":1,\"options\":\"parent.document_type\"},{\"fieldname\":\"transformations\",\"fieldtype\":\"MultiSelect\",\"label\":\"Transformations\",\"reqd\":1,\"options\":\"trim\\nlowercase\\nremove_extra_spaces\\nremove_punctuation\\ndigits_only\"}]}"
-  },
-  {
-    "doctype": "Process Method",
-    "name": "bolton.ruleflow.methods.deduplication.find_duplicates_in_child_table",
-    "method_name": "Find Duplicates in Child Table",
-    "method_path": "bolton.ruleflow.methods.deduplication.find_duplicates_in_child_table",
-    "category": "Deduplication",
-    "description": "Find duplicates based on values in a child table (e.g., Phone Numbers, Addresses)",
-    "return_type": "List",
-    "is_enabled": 1,
-    "module": "Ruleflow",
-    "config_schema": "{\"fields\": [{\"fieldname\": \"child_table_field\", \"fieldtype\": \"DocField\", \"label\": \"Child Table (e.g. phone_nos)\", \"reqd\": 1, \"options\": \"parent.document_type\"}, {\"fieldname\": \"child_search_field\", \"fieldtype\": \"Data\", \"label\": \"Field to Check (e.g. phone)\", \"reqd\": 1, \"description\": \"Fieldname inside the child table\"}]}"
   }
 ]

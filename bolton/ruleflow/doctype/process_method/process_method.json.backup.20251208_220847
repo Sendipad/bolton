@@ -15,16 +15,11 @@
   "return_type",
   "requires_permission",
   "version",
-  "side_effects",
   "section_break_description",
   "description",
   "usage_example",
   "section_break_config",
   "config_schema",
-  "section_break_schemas",
-  "input_schema",
-  "column_break_schemas",
-  "output_schema",
   "section_break_stats",
   "execution_count",
   "last_executed",
@@ -157,38 +152,6 @@
    "read_only": 1,
    "precision": "2",
    "description": "Average execution time in milliseconds"
-  },
-  {
-   "fieldname": "side_effects",
-   "fieldtype": "Select",
-   "label": "Side Effects",
-   "options": "Pure\nModifies Doc\nExternal Call",
-   "default": "Pure",
-   "description": "What side effects this method has"
-  },
-  {
-   "fieldname": "section_break_schemas",
-   "fieldtype": "Section Break",
-   "label": "Input/Output Schemas",
-   "collapsible": 1
-  },
-  {
-   "fieldname": "input_schema",
-   "fieldtype": "Code",
-   "label": "Input Schema",
-   "options": "JSON",
-   "description": "JSON Schema defining expected input parameters"
-  },
-  {
-   "fieldname": "column_break_schemas",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "output_schema",
-   "fieldtype": "Code",
-   "label": "Output Schema",
-   "options": "JSON",
-   "description": "JSON Schema defining expected return structure"
   }
  ],
  "index_web_pages_for_search": 1,
