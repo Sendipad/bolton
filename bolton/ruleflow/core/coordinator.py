@@ -122,6 +122,20 @@ class RuleCoordinator:
 			doc: Frappe document
 			rule_doc: Rule document
 		"""
+		# Check if rule should run asynchronously
+		if rule_doc.execution_mode == 'Asynchronous':
+			# Async only works for saved documents
+			if not doc.get('__islocal'):
+				frappe.enqueue(
+					'bolton.ruleflow.core.coordinator.RuleCoordinator.run_rule_background',
+					rule_name=rule_doc.name,
+					doc_doctype=doc.doctype,
+					doc_name=doc.name,
+					queue='default',
+					timeout=rule_doc.max_execution_time or 300
+				)
+				return
+		
 		from bolton.ruleflow.core.engine import RuleEngine
 		
 		# Increment execution count (Cached in Redis, not DB write)
@@ -131,6 +145,27 @@ class RuleCoordinator:
 		# Execute using new Engine
 		engine = RuleEngine(rule_doc)
 		engine.execute(doc)
+
+	@staticmethod
+	def run_rule_background(rule_name, doc_doctype, doc_name):
+		"""
+		Background job entry point
+		"""
+		try:
+			rule_doc = frappe.get_doc("Rule", rule_name)
+			doc = frappe.get_doc(doc_doctype, doc_name)
+			
+			from bolton.ruleflow.core.engine import RuleEngine
+			
+			# Stats for async
+			frappe.cache().hincrby(f"rule_stats:{rule_doc.name}", "count", 1)
+			frappe.cache().hset(f"rule_stats:{rule_doc.name}", "last_executed", frappe.utils.now())
+			
+			engine = RuleEngine(rule_doc)
+			engine.execute(doc)
+			
+		except Exception as e:
+			frappe.log_error(f"Async Rule Execution Failed: {rule_name}", str(e))
 	
 	@staticmethod
 	def clear_cache(doctype: str = None):

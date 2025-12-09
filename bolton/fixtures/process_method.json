@@ -137,11 +137,13 @@
     "method_name": "Find Similar Records",
     "method_path": "bolton.ruleflow.methods.deduplication.find_similar_records",
     "category": "Deduplication",
-    "description": "Find similar records using fuzzy matching",
+    "description": "Find similar records using configurable algorithms with blocking strategy and weighted scoring",
     "return_type": "List",
     "is_enabled": 1,
     "module": "Ruleflow",
-    "config_schema": "{\"fields\":[{\"fieldname\":\"fields\",\"fieldtype\":\"MultiDocField\",\"label\":\"Fields to Compare\",\"reqd\":1,\"options\":\"parent.document_type\"},{\"fieldname\":\"similarity_threshold\",\"fieldtype\":\"Percent\",\"label\":\"Match Threshold %\",\"default\":80}]}"
+    "side_effects": "Pure",
+    "config_schema": "{\"fields\":[{\"fieldname\":\"overall_threshold\",\"fieldtype\":\"Float\",\"label\":\"Overall Threshold\",\"default\":0.8,\"description\":\"Minimum weighted similarity score (0-1)\"},{\"fieldname\":\"minimum_fields_matched\",\"fieldtype\":\"Int\",\"label\":\"Min Fields to Match\",\"default\":1},{\"fieldname\":\"stop_after_first_match\",\"fieldtype\":\"Check\",\"label\":\"Stop After First Match\",\"default\":0},{\"fieldname\":\"fields_config\",\"fieldtype\":\"Table\",\"label\":\"Field Comparison Rules\",\"reqd\":1,\"options\":\"Dedupe Field Config\"}],\"child_tables\":{\"Dedupe Field Config\":[{\"fieldname\":\"fieldname\",\"fieldtype\":\"DocField\",\"label\":\"Field\",\"reqd\":1,\"options\":\"parent.document_type\"},{\"fieldname\":\"algorithm\",\"fieldtype\":\"Select\",\"label\":\"Algorithm\",\"options\":\"Exact\\nFuzzy\\nPhonetic\\nContains\\nNumeric Range\\nDate Distance\",\"reqd\":1,\"default\":\"Fuzzy\"},{\"fieldname\":\"weight\",\"fieldtype\":\"Float\",\"label\":\"Weight\",\"default\":0.2,\"precision\":2},{\"fieldname\":\"threshold\",\"fieldtype\":\"Float\",\"label\":\"Threshold\",\"default\":0.8,\"precision\":2,\"description\":\"Min score for this field (0-1)\"},{\"fieldname\":\"tolerance\",\"fieldtype\":\"Int\",\"label\":\"Tolerance\",\"default\":30,\"description\":\"For Date Distance: +/- days. For Numeric Range: % difference\"},{\"fieldname\":\"normalize\",\"fieldtype\":\"Check\",\"label\":\"Normalize\",\"default\":1},{\"fieldname\":\"included_in_filters\",\"fieldtype\":\"Check\",\"label\":\"Use for Blocking\",\"default\":1,\"description\":\"Use this field in initial candidate filtering\"}]}}",
+    "output_schema": "{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"},\"score\":{\"type\":\"number\"},\"fields\":{\"type\":\"object\"}}}}"
   },
   {
     "doctype": "Process Method",
@@ -274,5 +276,77 @@
     "is_enabled": 1,
     "module": "Ruleflow",
     "config_schema": "{\"fields\": [{\"fieldname\": \"child_table_field\", \"fieldtype\": \"DocField\", \"label\": \"Child Table (e.g. phone_nos)\", \"reqd\": 1, \"options\": \"parent.document_type\"}, {\"fieldname\": \"child_search_field\", \"fieldtype\": \"Data\", \"label\": \"Field to Check (e.g. phone)\", \"reqd\": 1, \"description\": \"Fieldname inside the child table\"}]}"
+  },
+  {
+    "doctype": "Process Method",
+    "name": "bolton.ruleflow.methods.advanced_validation.validate_child_table_rows",
+    "method_name": "Validate Child Table Rows",
+    "method_path": "bolton.ruleflow.methods.advanced_validation.validate_child_table_rows",
+    "category": "Validation",
+    "description": "Validate rows in a child table (e.g. source != target warehouse)",
+    "return_type": "Boolean",
+    "is_enabled": 1,
+    "module": "Ruleflow",
+    "config_schema": "{\"fields\":[{\"fieldname\":\"child_table\",\"fieldtype\":\"Data\",\"label\":\"Child Table Name\",\"reqd\":1},{\"fieldname\":\"validations\",\"fieldtype\":\"Table\",\"label\":\"Validation Rules\",\"reqd\":1,\"table_fields\":[{\"fieldname\":\"type\",\"fieldtype\":\"Select\",\"label\":\"Validation Type\",\"options\":\"fields_not_equal\\nfields_equal\\nfield_required\\nfield_greater_than\\neither_field_required\"},{\"fieldname\":\"field1\",\"fieldtype\":\"Data\",\"label\":\"Field 1\"},{\"fieldname\":\"field2\",\"fieldtype\":\"Data\",\"label\":\"Field 2\"},{\"fieldname\":\"value\",\"fieldtype\":\"Data\",\"label\":\"Value\"},{\"fieldname\":\"error_message\",\"fieldtype\":\"Data\",\"label\":\"Error Message\"}]}]}"
+  },
+  {
+    "doctype": "Process Method",
+    "name": "bolton.ruleflow.methods.advanced_validation.check_duplicate_with_child_fields",
+    "method_name": "Check Duplicate (Parent + Child)",
+    "method_path": "bolton.ruleflow.methods.advanced_validation.check_duplicate_with_child_fields",
+    "category": "Deduplication",
+    "description": "Check duplicate using parent and child table fields",
+    "return_type": "Boolean",
+    "is_enabled": 1,
+    "module": "Ruleflow",
+    "config_schema": "{\"fields\":[{\"fieldname\":\"parent_fields\",\"fieldtype\":\"MultiDocField\",\"label\":\"Parent Fields to Match\",\"reqd\":1,\"options\":\"parent.document_type\"},{\"fieldname\":\"child_table\",\"fieldtype\":\"Data\",\"label\":\"Child Table Name\",\"reqd\":1},{\"fieldname\":\"child_fields\",\"fieldtype\":\"MultiDocField\",\"label\":\"Child Fields to Match\",\"reqd\":1,\"options\":\"child_table\"},{\"fieldname\":\"match_mode\",\"fieldtype\":\"Select\",\"label\":\"Match Mode\",\"options\":\"any\\nall\",\"default\":\"any\"},{\"fieldname\":\"error_message\",\"fieldtype\":\"Data\",\"label\":\"Error Message\"}]}"
+  },
+  {
+    "doctype": "Process Method",
+    "name": "bolton.ruleflow.methods.advanced_validation.check_user_has_role",
+    "method_name": "Check User Role",
+    "method_path": "bolton.ruleflow.methods.advanced_validation.check_user_has_role",
+    "category": "Validation",
+    "description": "Check if current user has specific roles",
+    "return_type": "Boolean",
+    "is_enabled": 1,
+    "module": "Ruleflow",
+    "config_schema": "{\"fields\":[{\"fieldname\":\"roles\",\"fieldtype\":\"MultiSelect\",\"label\":\"Roles\",\"reqd\":1,\"options\":\"Role\"}]}"
+  },
+  {
+    "doctype": "Process Method",
+    "name": "bolton.ruleflow.methods.mdm.create_data_review_task",
+    "method_name": "Create Data Review Task",
+    "method_path": "bolton.ruleflow.methods.mdm.create_data_review_task",
+    "category": "MDM",
+    "description": "Create a task for data steward review",
+    "return_type": "Value",
+    "is_enabled": 1,
+    "module": "Ruleflow",
+    "config_schema": "{\"fields\":[{\"fieldname\":\"task_type\",\"fieldtype\":\"Select\",\"label\":\"Task Type\",\"options\":\"Duplicate Review\\nData Quality\\nMerge Request\",\"default\":\"Data Quality\"},{\"fieldname\":\"priority\",\"fieldtype\":\"Select\",\"label\":\"Priority\",\"options\":\"Low\\nMedium\\nHigh\",\"default\":\"Medium\"},{\"fieldname\":\"description\",\"fieldtype\":\"Text\",\"label\":\"Description\"}]}"
+  },
+  {
+    "doctype": "Process Method",
+    "name": "bolton.ruleflow.methods.mdm.find_duplicates_and_create_task",
+    "method_name": "Find Duplicates & Create Task",
+    "method_path": "bolton.ruleflow.methods.mdm.find_duplicates_and_create_task",
+    "category": "MDM",
+    "description": "Find duplicates and auto-create review tasks",
+    "return_type": "List",
+    "is_enabled": 1,
+    "module": "Ruleflow",
+    "config_schema": "{\"fields\":[{\"fieldname\":\"overall_threshold\",\"fieldtype\":\"Percent\",\"label\":\"Similarity Threshold\",\"default\":0.8},{\"fieldname\":\"fields_config\",\"fieldtype\":\"Table\",\"label\":\"Field Configuration\",\"reqd\":1,\"table_fields\":[{\"fieldname\":\"field\",\"fieldtype\":\"DocField\",\"label\":\"Field\",\"options\":\"parent.document_type\"},{\"fieldname\":\"weight\",\"fieldtype\":\"Percent\",\"label\":\"Weight\",\"default\":1.0},{\"fieldname\":\"algorithm\",\"fieldtype\":\"Select\",\"label\":\"Algorithm\",\"options\":\"Exact\\nFuzzy\\nPhonetic\\nContains\\nNumeric Range\\nDate Distance\",\"default\":\"Exact\"},{\"fieldname\":\"tolerance\",\"fieldtype\":\"Float\",\"label\":\"Tolerance\"}]},{\"fieldname\":\"task_type\",\"fieldtype\":\"Select\",\"label\":\"Task Type\",\"options\":\"Duplicate Review\\nData Quality\",\"default\":\"Duplicate Review\"}]}"
+  },
+  {
+    "doctype": "Process Method",
+    "name": "bolton.ruleflow.methods.mdm.enqueue_normalize_all_documents",
+    "method_name": "Batch Normalize (Background)",
+    "method_path": "bolton.ruleflow.methods.mdm.enqueue_normalize_all_documents",
+    "category": "MDM",
+    "description": "Normalize all documents in background",
+    "return_type": "Value",
+    "is_enabled": 1,
+    "module": "Ruleflow",
+    "config_schema": "{\"fields\":[{\"fieldname\":\"field\",\"fieldtype\":\"DocField\",\"label\":\"Source Field\",\"reqd\":1,\"options\":\"parent.document_type\"},{\"fieldname\":\"target_field\",\"fieldtype\":\"DocField\",\"label\":\"Target Field\",\"description\":\"Field to store result\"},{\"fieldname\":\"transformations\",\"fieldtype\":\"MultiSelect\",\"label\":\"Transformations\",\"options\":\"lowercase\\nstrip\\nremove_special\\ntitle_case\",\"default\":\"lowercase\\nstrip\"}]}"
   }
 ]

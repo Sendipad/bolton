@@ -193,104 +193,259 @@ async function openConfigDialog() {
     }
     
     const parentDoctype = store.rule_doc?.document_type;
-    const dialogFields = await buildDialogFields(schema.fields, parentDoctype);
+    const childTables = schema.child_tables || {};
+    const dialogFields = await buildDialogFields(schema.fields, parentDoctype, childTables);
     
+    // Parse current config
     let currentConfig = {};
     try {
-        currentConfig = JSON.parse(selectedNode.value.data.configuration || '{}');
-    } catch {}
+        const configStr = selectedNode.value.data?.configuration;
+        if (configStr && configStr !== '{}' && configStr !== 'null') {
+            currentConfig = JSON.parse(configStr);
+        }
+    } catch (e) {
+        console.error('Failed to parse configuration:', e);
+    }
     
+    // Pre-populate Table field data in the field definitions
     dialogFields.forEach(f => {
-        if (currentConfig[f.fieldname] !== undefined) {
+        if (f.fieldtype === 'Table' && currentConfig[f.fieldname]) {
+            f.data = currentConfig[f.fieldname];
+        } else if (currentConfig[f.fieldname] !== undefined && f.fieldtype !== 'Table') {
             f.default = currentConfig[f.fieldname];
         }
     });
     
     const dialog = new frappe.ui.Dialog({
-        title: methodName,
+        title: schema.method_name || methodName,
         fields: dialogFields,
         size: 'large',
         primary_action_label: __('Save'),
-        primary_action: (values) => {
-            selectedNode.value.data.configuration = JSON.stringify(values);
-            store.mark_dirty();
+        primary_action: () => {
+            const values = dialog.get_values();
+            if (values) {
+                // For Table fields, get data from grid
+                dialogFields.forEach(f => {
+                    if (f.fieldtype === 'Table') {
+                        const field = dialog.fields_dict[f.fieldname];
+                        if (field && field.grid) {
+                            values[f.fieldname] = field.grid.get_data();
+                        }
+                    }
+                });
+                
+                selectedNode.value.data.configuration = JSON.stringify(values);
+                store.mark_dirty();
+                frappe.show_alert({ message: __('Configuration saved'), indicator: 'green' });
+            }
             dialog.hide();
         }
     });
     
     dialog.show();
+    
+    // For Table fields, refresh grid with data after dialog is shown
+    setTimeout(() => {
+        dialogFields.forEach(f => {
+            if (f.fieldtype === 'Table' && currentConfig[f.fieldname]) {
+                const field = dialog.fields_dict[f.fieldname];
+                if (field && field.grid) {
+                    // Clear and set data
+                    field.grid.df.data = currentConfig[f.fieldname];
+                    field.grid.refresh();
+                }
+            }
+        });
+        
+        // Set non-table values
+        const nonTableConfig = {};
+        Object.keys(currentConfig).forEach(key => {
+            const field = dialogFields.find(f => f.fieldname === key);
+            if (field && field.fieldtype !== 'Table') {
+                nonTableConfig[key] = currentConfig[key];
+            }
+        });
+        if (Object.keys(nonTableConfig).length > 0) {
+            dialog.set_values(nonTableConfig);
+        }
+    }, 150);
 }
 
-async function buildDialogFields(schemaFields, parentDoctype) {
+async function buildDialogFields(schemaFields, parentDoctype, childTables = {}) {
     const fields = [];
     
     for (const field of schemaFields) {
-        if (field.fieldtype === 'DocField') {
-            let targetDoctype = parentDoctype;
-            
-            if (field.options === 'parent.document_type') {
-                targetDoctype = parentDoctype;
-            } else if (!field.options?.includes('.')) {
-                targetDoctype = field.options;
+        const mapped = await mapSchemaField(field, parentDoctype, childTables);
+        if (mapped) {
+            // Handle array of fields (e.g., Table expands to label + table)
+            if (Array.isArray(mapped)) {
+                fields.push(...mapped);
+            } else {
+                fields.push(mapped);
             }
-            
-            let options = [];
-            if (targetDoctype) {
-                try {
-                    const result = await frappe.call({
-                        method: 'bolton.ruleflow.api.get_doctype_fields',
-                        args: { doctype: targetDoctype, filters: JSON.stringify(field.filters || {}) }
-                    });
-                    if (result.message) {
-                        options = formatFieldOptions(result.message);
-                    }
-                } catch {}
-            }
-            
-            fields.push({
-                fieldname: field.fieldname,
-                fieldtype: 'Autocomplete',
-                label: field.label,
-                reqd: field.reqd,
-                options: options,
-                description: field.description
-            });
-        } else {
-            fields.push({
-                fieldname: field.fieldname,
-                fieldtype: field.fieldtype,
-                label: field.label,
-                reqd: field.reqd,
-                options: field.options,
-                description: field.description,
-                default: field.default
-            });
         }
     }
     
     return fields;
 }
 
-function formatFieldOptions(data) {
-    const options = [];
+async function mapSchemaField(field, parentDoctype, childTables) {
+    const { fieldname, fieldtype, label, reqd, options, description } = field;
+    const defaultVal = field.default;
     
-    if (data.parent_fields) {
-        data.parent_fields.forEach(f => {
-            options.push({ value: f.value, label: `${f.label} (${f.fieldtype})` });
-        });
+    switch (fieldtype) {
+        case 'DocField':
+            // Single field picker → Autocomplete
+            return {
+                fieldname,
+                fieldtype: 'Autocomplete',
+                label,
+                reqd,
+                description,
+                options: await getFieldOptions(options, parentDoctype)
+            };
+        
+        case 'MultiDocField':
+            // Multi field picker → MultiCheck with checkboxes
+            const multiOptions = await getFieldOptions(options, parentDoctype);
+            return {
+                fieldname,
+                fieldtype: 'MultiCheck',
+                label,
+                reqd,
+                description,
+                options: multiOptions,
+                columns: 2,
+                select_all: true
+            };
+        
+        case 'Table':
+            // Inline table → Table control with child fields
+            const childSchema = childTables[options] || [];
+            if (!childSchema.length) {
+                console.warn(`No child_tables definition for: ${options}`);
+                return null;
+            }
+            
+            // Map child fields recursively
+            const childFields = [];
+            for (const cf of childSchema) {
+                const mappedChild = await mapSchemaField(cf, parentDoctype, {});
+                if (mappedChild && !Array.isArray(mappedChild)) {
+                    // For table child fields, convert Autocomplete to Data with options
+                    if (mappedChild.fieldtype === 'Autocomplete') {
+                        mappedChild.fieldtype = 'Select';
+                        mappedChild.options = mappedChild.options?.map(o => o.value || o).join('\n') || '';
+                    }
+                    if (mappedChild.fieldtype === 'MultiCheck') {
+                        mappedChild.fieldtype = 'Select';
+                        mappedChild.options = mappedChild.options?.map(o => o.value || o).join('\n') || '';
+                    }
+                    mappedChild.in_list_view = 1;
+                    childFields.push(mappedChild);
+                }
+            }
+            
+            return {
+                fieldname,
+                fieldtype: 'Table',
+                label,
+                reqd,
+                description,
+                fields: childFields,
+                data: [],
+                cannot_add_rows: false,
+                in_place_edit: true
+            };
+        
+        case 'MultiSelect':
+            // Multi-select → MultiCheck
+            const selectOpts = parseSelectOptions(options);
+            return {
+                fieldname,
+                fieldtype: 'MultiCheck',
+                label,
+                reqd,
+                description,
+                options: selectOpts,
+                columns: 2
+            };
+        
+        case 'Percent':
+            // Percent → Float with description
+            return {
+                fieldname,
+                fieldtype: 'Float',
+                label,
+                reqd,
+                description: description || 'Value from 0-100',
+                default: defaultVal
+            };
+        
+        default:
+            // Standard Frappe fieldtype - pass through
+            return {
+                fieldname,
+                fieldtype,
+                label,
+                reqd,
+                options,
+                description,
+                default: defaultVal
+            };
     }
-    
-    if (data.child_tables) {
-        data.child_tables.forEach(table => {
-            options.push({ value: `__grp_${table.table_fieldname}`, label: `── ${table.table_label} ──`, disabled: true });
-            table.fields.forEach(f => {
-                options.push({ value: f.value, label: `  ${f.label} (${f.fieldtype})` });
-            });
-        });
-    }
-    
-    return options;
 }
+
+async function getFieldOptions(optionsRef, parentDoctype) {
+    let targetDoctype = parentDoctype;
+    
+    if (optionsRef === 'parent.document_type') {
+        targetDoctype = parentDoctype;
+    } else if (optionsRef && !optionsRef.includes('.')) {
+        targetDoctype = optionsRef;
+    }
+    
+    if (!targetDoctype) return [];
+    
+    try {
+        const result = await frappe.call({
+            method: 'bolton.ruleflow.api.get_doctype_fields',
+            args: { doctype: targetDoctype }
+        });
+        
+        if (result.message?.parent_fields) {
+            const opts = result.message.parent_fields.map(f => ({
+                value: f.value,
+                label: `${f.label} (${f.fieldtype})`
+            }));
+            
+            // Add child table fields
+            if (result.message.child_tables) {
+                result.message.child_tables.forEach(table => {
+                    opts.push({ value: '', label: `── ${table.table_label} ──`, disabled: true });
+                    table.fields.forEach(f => {
+                        opts.push({ value: f.value, label: `  ${f.label}` });
+                    });
+                });
+            }
+            
+            return opts;
+        }
+    } catch (e) {
+        console.error('Failed to fetch field options:', e);
+    }
+    
+    return [];
+}
+
+function parseSelectOptions(options) {
+    if (!options) return [];
+    return options.split('\n').filter(Boolean).map(opt => ({
+        value: opt.trim(),
+        label: opt.trim()
+    }));
+}
+
 </script>
 
 <style scoped>

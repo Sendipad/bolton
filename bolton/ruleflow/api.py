@@ -249,3 +249,70 @@ def import_rule(import_data, overwrite=False):
     from bolton.ruleflow.utils.import_export import import_rule as _import
     overwrite = frappe.parse_json(overwrite) if isinstance(overwrite, str) else overwrite
     return _import(import_data, overwrite)
+
+
+@frappe.whitelist()
+def get_action_context_schema(rule_name, action_id):
+    """
+    Get available context variables for a specific action in rule flow.
+    Used by UI to enable context-aware field selection.
+    """
+    rule = frappe.get_doc("Rule", rule_name)
+    
+    result = {
+        "doc_fields": [],
+        "predecessor_outputs": []
+    }
+    
+    # Get doc fields
+    try:
+        fields_data = get_doctype_fields(rule.document_type)
+        result["doc_fields"] = fields_data.get("parent_fields", [])
+    except Exception:
+        pass
+    
+    # Build action maps
+    action_map = {}
+    for a in rule.actions:
+        key = a.action_id or a.name
+        action_map[key] = a
+    
+    # Find predecessors by traversing graph backwards
+    predecessors = set()
+    queue = [action_id]
+    visited = set()
+    
+    while queue:
+        current_id = queue.pop(0)
+        if current_id in visited:
+            continue
+        visited.add(current_id)
+        
+        for action in rule.actions:
+            action_key = action.action_id or action.name
+            if action.next_step_if_true == current_id or action.next_step_if_false == current_id:
+                predecessors.add(action_key)
+                queue.append(action_key)
+    
+    # Get output schemas for predecessors
+    for pred_id in predecessors:
+        action = action_map.get(pred_id)
+        if not action or not action.process_method:
+            continue
+        
+        output_schema = None
+        try:
+            method = frappe.get_cached_doc("Process Method", action.process_method)
+            if method.output_schema:
+                output_schema = json.loads(method.output_schema)
+        except Exception:
+            pass
+        
+        result["predecessor_outputs"].append({
+            "action_id": action.action_id or action.name,
+            "action_label": action.action_label,
+            "return_variable": action.return_variable,
+            "output_schema": output_schema
+        })
+    
+    return result

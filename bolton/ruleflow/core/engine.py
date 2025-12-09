@@ -170,6 +170,15 @@ class RuleEngine:
 		# Pre-execution validation
 		self._validate_execution()
 		
+		# Check role-based skipping
+		if self.rule.get('skip_for_roles'):
+			user_roles = frappe.get_roles()
+			skip_roles = [row.role for row in self.rule.get('skip_for_roles')]
+			# Check if user has ANY of the skip roles
+			if any(role in user_roles for role in skip_roles):
+				self._log("INFO", f"Skipping rule execution for user with role(s): {skip_roles}")
+				return self.context
+		
 		# Initialize context
 		context = self._initialize_context(doc, **kwargs)
 		

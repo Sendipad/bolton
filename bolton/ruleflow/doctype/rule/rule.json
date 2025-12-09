@@ -18,6 +18,7 @@
         "execution_mode",
         "max_execution_time",
         "debug_mode",
+        "skip_for_roles",
         "section_break_flow",
         "actions",
         "section_break_stats",
@@ -106,6 +107,13 @@
             "fieldname": "debug_mode",
             "fieldtype": "Check",
             "label": "Debug Mode"
+        },
+        {
+            "fieldname": "skip_for_roles",
+            "fieldtype": "Table MultiSelect",
+            "label": "Skip for Roles",
+            "options": "Has Role",
+            "description": "Rule will NOT execute for users with these roles"
         },
         {
             "fieldname": "section_break_flow",
