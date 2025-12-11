@@ -1,5 +1,5 @@
-<img width="1024" height="1024" alt="logo" src="https://github.com/user-attachments/assets/f2de48cd-1990-4556-9d69-1a6f2b0e4361" />
-
+<img width="200" height="200" alt="logo" src="https://github.com/Sendipad/bolton/blob/develop/logo.png" />
+ 
 # Bolton Rule Engine
 
 **Enterprise-Grade Rule Engine & Data Quality Framework for Frappe/ERPNext**
@@ -105,5 +105,3 @@ bench --site [sitename] install-app bolton
 bench --site [sitename] migrate
 ```
 
-<img width="200" height="200" alt="logo" src="https://github.com/Sendipad/bolton/blob/develop/logo.png" />
- 
