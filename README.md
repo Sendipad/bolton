@@ -105,5 +105,5 @@ bench --site [sitename] install-app bolton
 bench --site [sitename] migrate
 ```
 
-<img alt="logo" src="https://github.com/Sendipad/bolton/blob/develop/logo.png" />
+<img width="150" height="150" alt="logo" src="https://github.com/Sendipad/bolton/blob/develop/logo.png" />
  
