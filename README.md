@@ -1,4 +1,6 @@
-<img width="200" height="200" alt="logo" src="https://github.com/Sendipad/bolton/blob/develop/logo.png" />
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Sendipad/bolton/develop/logo.png" width="200" height="200" alt="logo">
+</p>
  
 # Bolton Rule Engine
 
