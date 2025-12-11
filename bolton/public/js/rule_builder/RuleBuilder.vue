@@ -15,6 +15,19 @@
                     </button>
                 </div>
             </div>
+            
+            <div class="toolbar-center">
+                <div v-if="store.rule_doc" class="rule-status-toggle">
+                    <label class="switch">
+                        <input type="checkbox" 
+                            :checked="store.rule_doc.is_active" 
+                            @change="toggleRuleActive">
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="status-label">{{ store.rule_doc.is_active ? 'Rule Enabled' : 'Rule Disabled' }}</span>
+                </div>
+            </div>
+
             <div class="toolbar-right">
                 <button class="btn btn-xs btn-default" @click="fitView()" title="Fit View">
                     <i class="fa fa-expand"></i>
@@ -68,7 +81,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { VueFlow, useVueFlow, Panel, PanelPosition } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
 import { useStore } from './store';
@@ -111,7 +124,19 @@ onMounted(async () => {
     }
     await store.fetch();
     autoConnectStartNode();
+    window.addEventListener('keydown', handleKeydown);
 });
+
+onUnmounted(() => {
+    window.removeEventListener('keydown', handleKeydown);
+});
+
+function handleKeydown(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        store.save_changes();
+    }
+}
 
 function autoConnectStartNode() {
     const hasStartEdge = store.graph.elements.some(el => el.source === 'start');
@@ -182,6 +207,13 @@ function addNode(type) {
     store.graph.selected = newNode;
     store.mark_dirty();
 }
+
+function toggleRuleActive(e) {
+    if (store.rule_doc) {
+        store.rule_doc.is_active = e.target.checked ? 1 : 0;
+        store.mark_dirty();
+    }
+}
 </script>
 
 <style>
@@ -224,5 +256,71 @@ function addNode(type) {
     border-radius: var(--border-radius-lg);
     border: 1px solid var(--border-color);
     background-color: var(--fg-color);
+}
+
+.toolbar-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+}
+
+.rule-status-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* Toggle Switch */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 32px;
+    height: 18px;
+    margin: 0;
+}
+
+.switch input { 
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: var(--primary);
+}
+
+input:focus + .slider {
+    box-shadow: 0 0 1px var(--primary);
+}
+
+input:checked + .slider:before {
+    transform: translateX(14px);
 }
 </style>

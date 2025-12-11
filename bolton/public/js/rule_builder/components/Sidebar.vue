@@ -16,6 +16,19 @@
                     <label>Trigger Event</label>
                     <input type="text" class="form-control" :value="selectedNode.data?.trigger_event" readonly />
                 </div>
+                
+                <div class="form-group">
+                    <label>Trigger Filters</label>
+                    <div class="help-text text-muted mb-2" style="font-size: 11px;">Condition filters evaluated before Rule execution.</div>
+                    
+                    <button class="btn btn-default btn-sm w-100" @click="editFilters">
+                        <i class="fa fa-filter"></i> Set Filters
+                    </button>
+                    
+                    <div v-if="selectedNode.data?.document_type_filters && selectedNode.data.document_type_filters !== '[]'" class="mt-2" style="font-size: 12px; color: var(--text-muted);">
+                        <i class="fa fa-check-circle text-success"></i> Filters Configured
+                    </div>
+                </div>
             </template>
             
             <!-- Action Nodes -->
@@ -39,23 +52,94 @@
                 </div>
                 
                 <template v-if="selectedNode.data?.action_type === 'Process'">
-                    <div class="form-group">
+                    <div class="form-group relative">
                         <label>Method</label>
-                        <select class="form-control"
-                            :value="selectedNode.data?.process_method"
-                            @change="updateProcessMethod($event.target.value)">
-                            <option value="">-- Select --</option>
-                            <option v-for="m in store.process_methods" :key="m.name" :value="m.name">
-                                {{ m.method_name }}
-                            </option>
-                        </select>
+                        <div class="input-group">
+                            <input type="text" class="form-control" 
+                                v-model="methodSearch"
+                                @focus="showMethodSuggestions = true"
+                                @input="filterMethods"
+                                placeholder="Search method..." />
+                            <button class="btn btn-default btn-sm" @click="showMethodDescription" title="Show Description">
+                                <i class="fa fa-info-circle"></i>
+                            </button>
+                        </div>
+                        
+                        <div v-if="showMethodSuggestions" class="suggestions-dropdown">
+                            <div v-for="m in store.process_methods.filter(m => 
+                                    m.method_name.toLowerCase().includes(methodSearch.toLowerCase()) || 
+                                    (m.method_path && m.method_path.toLowerCase().includes(methodSearch.toLowerCase()))
+                                )" 
+                                :key="m.name" 
+                                class="suggestion-item"
+                                @click="selectMethod(m)">
+                                <div class="suggestion-name">{{ m.method_name }}</div>
+                                <div class="suggestion-path" v-if="m.method_path">{{ m.method_path }}</div>
+                            </div>
+                            <div v-if="!store.process_methods.length" class="p-2 text-muted">No methods found</div>
+                        </div>
                     </div>
                     
                     <button v-if="selectedNode.data?.process_method"
-                        class="btn btn-sm btn-default w-100" 
+                        class="btn btn-sm btn-default w-100 mb-3" 
                         @click="openConfigDialog">
                         <i class="fa fa-cog"></i> Configure
                     </button>
+
+                    <div class="row">
+                        <div class="col-xs-6">
+                            <div class="form-group">
+                                <label>Timeout (s)</label>
+                                <input type="number" class="form-control" 
+                                    :value="selectedNode.data?.timeout || 30"
+                                    @input="updateField('timeout', parseInt($event.target.value))" />
+                            </div>
+                        </div>
+                        <div class="col-xs-6">
+                            <div class="form-group">
+                                <label>Priority</label>
+                                <input type="number" class="form-control" 
+                                    :value="selectedNode.data?.priority || 0"
+                                    @input="updateField('priority', parseInt($event.target.value))" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>On Error</label>
+                        <select class="form-control" 
+                            :value="selectedNode.data?.on_error || 'Stop'"
+                            @change="updateField('on_error', $event.target.value)">
+                            <option value="Stop">Stop</option>
+                            <option value="Continue">Continue</option>
+                            <option value="Retry">Retry</option>
+                            <option value="Rollback">Rollback</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" v-if="selectedNode.data?.on_error === 'Retry'">
+                        <label>Retry Count</label>
+                        <input type="number" class="form-control" 
+                            :value="selectedNode.data?.retry_count || 0"
+                            @input="updateField('retry_count', parseInt($event.target.value))" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Return Variable</label>
+                        <input type="text" class="form-control" 
+                            :value="selectedNode.data?.return_variable"
+                            @input="updateField('return_variable', $event.target.value)" 
+                            placeholder="result_var_name" />
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" 
+                                :checked="selectedNode.data?.is_async"
+                                @change="updateField('is_async', $event.target.checked ? 1 : 0)" />
+                            Run Asynchronously
+                        </label>
+                    </div>
                 </template>
                 
                 <div class="form-group" v-if="selectedNode.data?.action_type === 'Condition'">
@@ -108,13 +192,264 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import { useStore } from '../store';
 
 const emit = defineEmits(['close']);
 const store = useStore();
 
 const selectedNode = computed(() => store.graph.selected);
+
+// Process Method Autocomplete
+const methodSearch = ref('');
+const showMethodSuggestions = ref(false);
+const methodDescription = ref('');
+
+watch(() => selectedNode.value?.data?.process_method, (newVal) => {
+    if (newVal) {
+        const method = store.process_methods.find(m => m.name === newVal);
+        methodSearch.value = method ? method.method_name : newVal;
+        methodDescription.value = method ? method.description : '';
+    } else {
+        methodSearch.value = '';
+        methodDescription.value = '';
+    }
+}, { immediate: true });
+
+function filterMethods() {
+    showMethodSuggestions.value = true;
+}
+
+function selectMethod(method) {
+    methodSearch.value = method.method_name;
+    updateProcessMethod(method.name);
+    showMethodSuggestions.value = false;
+}
+
+function showMethodDescription() {
+    if (methodDescription.value) {
+        frappe.msgprint({
+            title: __('Method Description'),
+            message: methodDescription.value
+        });
+    } else {
+        frappe.msgprint(__('No description available'));
+    }
+}
+
+function updateStartNodeFilters(filtersJSON) {
+    if (!selectedNode.value?.data) return;
+    selectedNode.value.data.document_type_filters = filtersJSON;
+    store.mark_dirty();
+}
+
+function editFilters() {
+    if (!selectedNode.value?.data?.document_type) return;
+
+    const doctype = selectedNode.value.data.document_type;
+    const currentFilters = selectedNode.value.data.document_type_filters;
+
+    frappe.model.with_doctype(doctype, () => {
+        const dialog = new frappe.ui.Dialog({
+            title: __('Set Trigger Filters'),
+            fields: [
+                {
+                    fieldname: 'filter_area',
+                    fieldtype: 'HTML',
+                    label: 'Filters'
+                }
+            ],
+            size: 'large',
+            primary_action_label: __('Set'),
+            secondary_action_label: __('Preview Python'),
+            secondary_action: () => {
+                const values = filter_group.get_filters();
+                const expression = convertFiltersToPython(values);
+                frappe.msgprint({
+                    title: 'Python Expression',
+                    message: `<pre>${expression}</pre>`,
+                    indicator: 'blue'
+                });
+            }
+        });
+
+        // Set action converts FilterGroup -> Python -> update
+        dialog.set_primary_action(__('Set'), () => {
+             const values = filter_group.get_filters();
+             const expression = convertFiltersToPython(values);
+             updateStartNodeFilters(expression);  // Save as Python string
+             dialog.hide();
+        });
+
+        // Add custom button for Import (optional now, since load handles it, but good for raw edit)
+        dialog.add_custom_action(__('Edit Raw Python'), () => {
+             const values = filter_group.get_filters();
+             const currentExpr = convertFiltersToPython(values);
+             
+             frappe.prompt(
+                { 
+                    label: 'Python Expression', fieldname: 'expression', 
+                    fieldtype: 'Code', options: 'Python', reqd: 1,
+                    default: currentExpr 
+                },
+                (data) => {
+                     updateStartNodeFilters(data.expression);
+                     dialog.hide();
+                },
+                __('Edit Raw Python'),
+                __('Save')
+            );
+        });
+
+        dialog.show();
+        
+        // Initialize FilterGroup
+        const filter_group = new frappe.ui.FilterGroup({
+            parent: dialog.get_field("filter_area").$wrapper,
+            doctype: doctype,
+            on_change: () => {},
+        });
+        
+        // Load initial values: Python String -> JSON Filters
+        if (currentFilters && typeof currentFilters === 'string') {
+            try {
+                // If it looks like a list (legacy support or empty), try JSON parse
+                if (currentFilters.trim().startsWith('[') && currentFilters.includes(']')) {
+                     try {
+                         const jsonFilters = JSON.parse(currentFilters);
+                         filter_group.add_filters_to_filter_group(jsonFilters);
+                         frappe.show_alert({message: __('Imported successfully'), indicator: 'green'});
+                         return;
+                     } catch(e) {
+                         // Not JSON, proceed as Python
+                         frappe.msgprint(__('Could not parse expression. Ensure format is: field == "value"'));
+                     }
+                }
+                
+                // Parse Python Expression
+                const parsedFilters = convertPythonToFilters(currentFilters, doctype);
+                if (parsedFilters && parsedFilters.length) {
+                    filter_group.add_filters_to_filter_group(parsedFilters);
+                }
+            } catch(e) { 
+                console.error("Error parsing python filters", e);
+                frappe.msgprint(__('Error parsing expression: ') + e.message);
+            }
+        }
+    });
+}
+
+function convertFiltersToPython(filters) {
+    if (!filters || !filters.length) return "True";
+    
+    // filters format: [[doctype, field, operator, value], ...]
+    const operatorMap = {
+        '=': '==',
+        '!=': '!=',
+        '>': '>',
+        '<': '<',
+        '>=': '>=',
+        '<=': '<=',
+        'Like': 'in', // Approximate mapping
+        'Not Like': 'not in',
+        'In': 'in',
+        'Not In': 'not in',
+        'is': 'is',
+        'like': 'in',
+        'not like': 'not in',
+        'in': 'in',
+        'not in': 'not in'
+    };
+
+    return filters.map(f => {
+        const field = f[1];
+        const op = operatorMap[f[2]] || '==';
+        let val = f[3];
+        
+        // Handle various value types
+        if (Array.isArray(val)) {
+             // Handle Array -> Tuple
+             const quoted = val.map(v => typeof v === 'string' ? `'${v}'` : v);
+             val = `(${quoted.join(', ')})`;
+        } else if (typeof val === 'string') {
+             // If comma separated string for IN operator, convert to tuple
+             if ((op === 'in' || op === 'not in') && val.includes(',')) {
+                 const parts = val.split(',').map(v => `'${v.trim()}'`);
+                 val = `(${parts.join(', ')})`;
+             } else {
+                 val = `'${val}'`;
+             }
+        }
+        
+        // Handle Like/Not Like reversing operands if needed or strict "like"
+        // For simplicity using standard python comparison structure
+        // No doc. prefix needed for standard frappe.safe_eval(expr, None, doc)
+        return `${field} ${op} ${val}`;
+    }).join(' and ');
+}
+
+function convertPythonToFilters(expression, doctype) {
+    // Simple regex parser for field op value
+    // Supports AND logic only (which matches Frappe FilterGroup capabilities)
+    
+    if (!expression) return [];
+
+    const parts = expression.split(/\s+and\s+/i);
+    const filters = [];
+    
+    const opMapReverse = {
+        '==': '=',
+        '!=': '!=',
+        '>': '>',
+        '<': '<',
+        '>=': '>=',
+        '<=': '<=',
+        'in': 'in', 
+        'not in': 'not in',
+        'is': 'is'
+    };
+    
+    // Regex matches: (doc.)?field_name operator 'value' or number or list/tuple
+    // Groups: 1=(optional doc.), 2=field, 3=operator, 4=value
+    const regex = /(?:doc\.)?(\w+)\s*(==|!=|>=|<=|>|<|in|not in|is)\s*((?:['"].*?['"])|(?:\d+(?:\.\d+)?)|(?:None|True|False)|(?:\[.*?\])|(?:\(.*?\)))/;
+    
+    for (const part of parts) {
+        const match = part.trim().match(regex);
+        if (match) {
+            const field = match[1]; 
+            const op = opMapReverse[match[2]] || '=';
+            let val = match[3];
+            
+            // Unquote string
+            if ((val.startsWith("'") && val.endsWith("'")) || (val.startsWith('"') && val.endsWith('"'))) {
+                val = val.slice(1, -1);
+            }
+            // Handle booleans/nulls
+            else if (val === 'None') val = '';
+            // Handle List/Tuple for 'in' operator
+            else if (val.startsWith('[') || val.startsWith('(')) {
+                // Convert Python tuple/list string to JS array
+                // standardizing quotes to double for JSON parse, simple heuristic
+                try {
+                    // Replace ' with " and () with []
+                    let arrayStr = val.replace(/'/g, '"');
+                    if (arrayStr.startsWith('(')) {
+                        arrayStr = '[' + arrayStr.slice(1, -1) + ']';
+                    }
+                    val = JSON.parse(arrayStr);
+                } catch(e) {
+                    console.warn("Failed to parse list/tuple value", val);
+                    // Fallback: strip brackets and standard cleanup if JSON fails?
+                    // For now, let it be string if parse fails, though FilterGroup might complain if it expects array
+                }
+            }
+            
+            filters.push([doctype, field, op, val]);
+        }
+    }
+    
+    return filters;
+}
 
 const availableNextNodes = computed(() => {
     return store.graph.elements
@@ -355,7 +690,7 @@ async function mapSchemaField(field, parentDoctype, childTables) {
                 fields: childFields,
                 data: [],
                 cannot_add_rows: false,
-                in_place_edit: true
+                in_place_edit: false
             };
         
         case 'MultiSelect':
@@ -521,4 +856,42 @@ hr {
 
 .w-100 { width: 100%; }
 .mt-3 { margin-top: 15px; }
+.mb-2 { margin-bottom: 8px; }
+.mb-3 { margin-bottom: 12px; }
+
+.suggestions-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.suggestion-item {
+    padding: 8px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color-muted);
+}
+.suggestion-item:hover {
+    background-color: var(--bg-light-gray);
+}
+.suggestion-name {
+    font-weight: 500;
+    font-size: 13px;
+}
+.suggestion-path {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+.input-group {
+    display: flex;
+    gap: 5px;
+}
+.relative { position: relative; }
 </style>

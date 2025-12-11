@@ -7,6 +7,34 @@ from bolton.ruleflow.utils.schema_validator import validate_config
 from bolton.ruleflow.utils.graph_validator import validate_graph_integrity
 
 class Rule(Document):
+    # begin: auto-generated types
+    # This code is auto-generated. Do not modify anything in this block.
+
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from bolton.ruleflow.doctype.rule_action.rule_action import RuleAction
+        from frappe.core.doctype.has_role.has_role import HasRole
+        from frappe.types import DF
+
+        actions: DF.Table[RuleAction]
+        apply_to_child_tables: DF.Check
+        debug_mode: DF.Check
+        description: DF.Text | None
+        document_type: DF.Link
+        document_type_filters: DF.Code | None
+        execution_count: DF.Int
+        execution_mode: DF.Literal["Synchronous", "Asynchronous"]
+        is_active: DF.Check
+        last_error: DF.Text | None
+        last_executed: DF.Datetime | None
+        max_execution_time: DF.Int
+        options_json: DF.Code | None
+        priority: DF.Int
+        rule_name: DF.Data
+        skip_for_roles: DF.TableMultiSelect[HasRole]
+        trigger_event: DF.Literal["Before Insert", "Before Save", "Validate", "After Insert", "After Save", "Before Submit", "On Submit", "Before Cancel", "On Cancel", "On Trash"]
+    # end: auto-generated types
     def validate(self):
         """
         Validate Rule Configuration

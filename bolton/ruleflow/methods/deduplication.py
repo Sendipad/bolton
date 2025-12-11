@@ -543,3 +543,29 @@ def find_duplicates_in_child_table(context, child_table_field, child_search_fiel
     )
     
     return duplicates
+
+
+def check_similar_and_prevent_save(context, **kwargs):
+    """
+    Find similar records (fuzzy match) and prevent save if any are found.
+    Wrapper around find_similar_records that throws DuplicateEntryError.
+    
+    Args:
+        context: Execution context
+        **kwargs: Arguments passed to find_similar_records
+    """
+    matches = find_similar_records(context, **kwargs)
+    
+    if matches:
+        match_names = ", ".join([m['name'] for m in matches[:3]])
+        count = len(matches)
+        
+        if count > 3:
+            match_names += _(" and {0} others").format(count - 3)
+            
+        frappe.throw(
+            _("Potential duplicates found: {0}").format(match_names),
+            exc=frappe.DuplicateEntryError
+        )
+    
+    return matches
