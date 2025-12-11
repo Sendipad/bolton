@@ -105,12 +105,5 @@ bench --site [sitename] install-app bolton
 bench --site [sitename] migrate
 ```
 
-## 🧪 Running Tests
-
-```bash
-bench --site [sitename] run-tests --app bolton
-```
-
-## License
-
-MIT
+<img width="1024" height="1024" alt="logo" src="https://github.com/Sendipad/bolton/logo.png" />
+ 
