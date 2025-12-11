@@ -1,4 +1,5 @@
 <img width="1024" height="1024" alt="logo" src="https://github.com/user-attachments/assets/f2de48cd-1990-4556-9d69-1a6f2b0e4361" />
+
 # Bolton Rule Engine
 
 **Enterprise-Grade Rule Engine & Data Quality Framework for Frappe/ERPNext**
